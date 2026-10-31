@@ -57,6 +57,13 @@ class RetrievalSettings(_Group, env_prefix="RETRIEVAL_"):
     context_tokens: int = 2500
 
 
+class LimitSettings(_Group, env_prefix="LIMITS_"):
+    # Вопросов и карточек в минуту на один ключ. Каждый вопрос — это вызов
+    # облачной модели, а квота у команды общая на месяц.
+    ask_per_minute: int = 20
+    upload_per_minute: int = 30
+
+
 class StorageSettings(_Group, env_prefix="STORAGE_"):
     uploads_dir: str = "data/uploads"
     max_upload_mb: int = 20
@@ -71,6 +78,7 @@ class Settings(_Group):
     llm: LLMSettings = Field(default_factory=LLMSettings)
     models: ModelSettings = Field(default_factory=ModelSettings)
     retrieval: RetrievalSettings = Field(default_factory=RetrievalSettings)
+    limits: LimitSettings = Field(default_factory=LimitSettings)
     storage: StorageSettings = Field(default_factory=StorageSettings)
 
 

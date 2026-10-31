@@ -10,6 +10,7 @@ from src.core.runtime import Resources
 from src.security.auth import Principal
 from src.search.query import search_query
 from src.search.retrieval import retrieve
+from src.security.pii import Pseudonymizer
 from src.generation.output import OutputFilter
 from src.generation.llm import Completion, LLMRouter, Prompt
 from src.ingestion.captions import SEARCH_PROMPT, describe_image, image_mime
@@ -98,6 +99,8 @@ async def _prepare(
     history = question.history[-HISTORY_TURNS:]
     description = await describe_screen(resources, router, principal, question.image) if question.image else None
 
+    # История и вопрос уходят только в локальную модель и локальные эмбеддинги,
+    # поэтому здесь их не маскируют: ПДн не покидают инфраструктуру команды.
     query = await search_query(router, question.text, history)
     # Вопрос идёт первым: эмбеддер обрезает длинный текст с конца.
     retrieval_query = f"{query}\n{description}" if description else query
@@ -107,26 +110,29 @@ async def _prepare(
     if not sources:
         return Answer(NO_ANSWER, [], retrieval_query)
 
-    texts = [s.text for s in sources]
-    fitted = fit_sources(sources, texts, settings.context_tokens)
+    pseudonymizer = Pseudonymizer()
+    masked_texts = await pseudonymizer.mask_many([s.text for s in sources])
+    masked_question, *masked_turns = await pseudonymizer.mask_many([question.text, *(t["content"] for t in history)])
+    masked_history = [{"role": t["role"], "content": c} for t, c in zip(history, masked_turns, strict=True)]
+    fitted = fit_sources(sources, masked_texts, settings.context_tokens)
 
     image_url = None
-    local_question = question.text
+    local_question = masked_question
     if question.image is not None:
         image_url = f"data:{image_mime(question.image)};base64,{base64.b64encode(question.image).decode()}"
         # Локальная модель картинку не видит: ей достаётся описание, если оно есть.
         if description:
-            local_question += f"\n\nОписание приложенного скрина: {description}"
+            local_question += f"\n\nОписание приложенного скрина: {pseudonymizer.mask(description)}"
     # Резервной модели — те же источники в том же порядке, но столько, сколько поместится
     # в её окно. Номера совпадают с облачным вариантом, поэтому цитаты не съезжают.
-    budget = local_source_budget(resources.settings.llm.local_context_tokens, local_question, history)
-    local_fitted = fit_sources(sources, texts, budget)
+    budget = local_source_budget(resources.settings.llm.local_context_tokens, local_question, masked_history)
+    local_fitted = fit_sources(sources, masked_texts, budget)
     return _Prepared(
         sources=fitted,
         local_sources=local_fitted,
-        cloud=Prompt(build_messages(question.text, fitted, history, image_url), ANSWER_MAX_TOKENS),
-        local=Prompt(build_messages(local_question, local_fitted, history), LOCAL_ANSWER_MAX_TOKENS),
-        output=OutputFilter(),
+        cloud=Prompt(build_messages(masked_question, fitted, masked_history, image_url), ANSWER_MAX_TOKENS),
+        local=Prompt(build_messages(local_question, local_fitted, masked_history), LOCAL_ANSWER_MAX_TOKENS),
+        output=OutputFilter(pseudonymizer, principal.link_domains),
         search_query=retrieval_query
     )
 

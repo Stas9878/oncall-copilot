@@ -5,8 +5,8 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field, model_validator
 
 from src.security.uploads import decode_screen
+from src.api.deps import AskerDep, ResourcesDep
 from src.services.answer import describe_screen
-from src.api.deps import PrincipalDep, ResourcesDep
 from src.generation.llm import LLMRouter, LLMUnavailable
 from src.services.extraction import ExtractedCard, extract_card
 
@@ -30,7 +30,7 @@ class ExtractIn(BaseModel):
 
 
 @router.post("/extract", response_model=ExtractedCard)
-async def extract(body: ExtractIn, principal: PrincipalDep, resources: ResourcesDep) -> ExtractedCard:
+async def extract(body: ExtractIn, principal: AskerDep, resources: ResourcesDep) -> ExtractedCard:
     image = decode_screen(body.image_base64) if body.image_base64 else None
     try:
         summary = await describe_screen(resources, LLMRouter(resources), principal, image) if image else None

@@ -11,7 +11,7 @@ from fastapi.sse import EventSourceResponse, ServerSentEvent
 from src.core.logs import log
 from src.generation.llm import LLMUnavailable
 from src.security.uploads import decode_screen
-from src.api.deps import PrincipalDep, ResourcesDep
+from src.api.deps import AskerDep, ResourcesDep
 from src.services.answer import Answer, Question, answer, answer_stream
 
 router = APIRouter(prefix="/v1/ask", tags=["ask"])
@@ -61,7 +61,7 @@ def _out(result: Answer) -> AnswerOut:
 
 
 @router.post("", response_model=AnswerOut)
-async def ask(body: AskIn, principal: PrincipalDep, resources: ResourcesDep) -> AnswerOut:
+async def ask(body: AskIn, principal: AskerDep, resources: ResourcesDep) -> AnswerOut:
     try:
         return _out(await answer(resources, principal, _question(body)))
     except LLMUnavailable as error:
@@ -69,7 +69,7 @@ async def ask(body: AskIn, principal: PrincipalDep, resources: ResourcesDep) -> 
 
 
 @router.post("/stream", response_class=EventSourceResponse)
-async def ask_stream(body: AskIn, principal: PrincipalDep, resources: ResourcesDep) -> AsyncIterator[ServerSentEvent]:
+async def ask_stream(body: AskIn, principal: AskerDep, resources: ResourcesDep) -> AsyncIterator[ServerSentEvent]:
     """События: token — часть текста, done — цитаты и метаданные, error — сбой."""
     question = _question(body)
     try:

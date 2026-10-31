@@ -14,7 +14,7 @@ from src.generation.cache import bump_kb_version
 from src.security.uploads import detect_kind, read_limited
 from src.search.index import collection_name, delete_document
 from src.db.models import Document, DocumentKind, DocumentStatus
-from src.api.deps import EditorDep, PrincipalDep, ResourcesDep, SessionDep
+from src.api.deps import EditorDep, PrincipalDep, ResourcesDep, SessionDep, UploaderDep
 
 router = APIRouter(prefix="/v1/documents", tags=["documents"])
 
@@ -43,7 +43,7 @@ async def _get_own(session: AsyncSession, tenant_id: uuid.UUID, document_id: uui
 
 @router.post("", status_code=status.HTTP_202_ACCEPTED, response_model=DocumentOut)
 async def upload(
-    file: UploadFile, principal: EditorDep, session: SessionDep, resources: ResourcesDep, response: Response
+    file: UploadFile, principal: UploaderDep, session: SessionDep, resources: ResourcesDep, response: Response
 ) -> DocumentOut:
     """Принимает файл и ставит индексацию в очередь. Ответ не ждёт индексации."""
     storage_settings = resources.settings.storage

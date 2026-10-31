@@ -9,6 +9,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from src.core.runtime import Resources
 from src.db.session import session_scope
+from src.security.rate_limit import check_rate
 from src.security.auth import Principal, resolve_key
 
 _bearer = HTTPBearer(auto_error=False)
@@ -56,3 +57,18 @@ async def require_editor(principal: PrincipalDep) -> Principal:
 
 
 EditorDep = Annotated[Principal, Depends(require_editor)]
+
+
+async def limit_ask(principal: PrincipalDep, resources: ResourcesDep) -> Principal:
+    await check_rate(resources.redis, principal.key_id, "ask", resources.settings.limits.ask_per_minute)
+    return principal
+
+
+async def limit_upload(principal: EditorDep, resources: ResourcesDep) -> Principal:
+    await check_rate(resources.redis, principal.key_id, "upload", resources.settings.limits.upload_per_minute)
+    return principal
+
+
+# Вопросы и загрузки проходят лимит частоты, чтение списков и статусов — нет.
+AskerDep = Annotated[Principal, Depends(limit_ask)]
+UploaderDep = Annotated[Principal, Depends(limit_upload)]

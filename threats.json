@@ -1,0 +1,75 @@
+[
+  {
+    "id": "THREAT-01",
+    "owasp": "LLM08",
+    "threat": "Инженер одной команды получает фрагмент документа другой команды",
+    "impact": "critical",
+    "mitigation": "Команда берётся только из ключа API. Поиск в Qdrant с обязательным фильтром tenant_id, разделы из Postgres повторно проверяются по команде",
+    "test": [
+      "tests/integration/test_isolation.py::test_canary_of_other_tenant_not_retrieved",
+      "tests/integration/test_isolation.py::test_other_tenant_document_is_not_found"
+    ]
+  },
+  {
+    "id": "THREAT-02",
+    "owasp": "LLM02",
+    "threat": "Телефоны и ФИО сотрудников уходят стороннему облачному провайдеру",
+    "impact": "high",
+    "mitigation": "Псевдонимизация вопроса, истории и источников до облачной модели, настоящие значения возвращаются только в ответе своему сотруднику",
+    "test": [
+      "tests/unit/test_pii.py::test_messages_for_cloud_contain_no_phones",
+      "tests/unit/test_pii.py::test_labels_restored_in_answer"
+    ]
+  },
+  {
+    "id": "THREAT-03",
+    "owasp": "LLM01",
+    "threat": "Инструкция в документе или аннотации алерта заставляет модель дать вредную ссылку",
+    "impact": "high",
+    "mitigation": "Источники и алерт помечены в промпте как данные. Ссылки на домены вне списка команды вырезаются из ответа, в том числе в потоке",
+    "test": [
+      "tests/unit/test_output.py::test_foreign_link_removed",
+      "tests/unit/test_output.py::test_link_split_across_stream_chunks_removed"
+    ]
+  },
+  {
+    "id": "THREAT-04",
+    "owasp": "LLM04",
+    "threat": "Ключ только для чтения загружает в базу знаний отравленный документ",
+    "impact": "high",
+    "mitigation": "Загрузка и удаление документов только для ключа с ролью editor",
+    "test": ["tests/integration/test_isolation.py::test_reader_cannot_upload"]
+  },
+  {
+    "id": "THREAT-05",
+    "owasp": "LLM10",
+    "threat": "Один ключ в цикле расходует месячную квоту облачной модели всей команды",
+    "impact": "high",
+    "mitigation": "Лимит запросов в минуту на ключ в Redis, месячный бюджет токенов команды, при исчерпании — локальная модель",
+    "test": ["tests/integration/test_isolation.py::test_rate_limit_returns_429"]
+  },
+  {
+    "id": "THREAT-06",
+    "owasp": "LLM09",
+    "threat": "Карточка инцидента предлагает шаг, которого нет в ранбуке",
+    "impact": "high",
+    "mitigation": "Каждый шаг подтверждается дословной цитатой из источника, шаги без найденной цитаты выбрасываются",
+    "test": ["tests/unit/test_extraction.py::test_action_without_quote_in_source_is_dropped"]
+  },
+  {
+    "id": "THREAT-07",
+    "owasp": null,
+    "threat": "Загрузка файла с подменённым типом или путём",
+    "impact": "medium",
+    "mitigation": "Тип по сигнатуре содержимого, лимит размера, имя файла на диске — хеш содержимого",
+    "test": ["tests/unit/test_uploads.py::test_type_detected_by_content_not_extension"]
+  },
+  {
+    "id": "THREAT-08",
+    "owasp": "LLM07",
+    "threat": "Пользователь просит вывести системный промпт",
+    "impact": "low",
+    "mitigation": "В системных промптах нет ключей, адресов и данных команд: их утечка ничего не раскрывает",
+    "test": []
+  }
+]
