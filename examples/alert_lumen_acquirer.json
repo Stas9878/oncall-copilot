@@ -1,0 +1,20 @@
+{
+  "version": "4",
+  "status": "firing",
+  "receiver": "oncall-copilot",
+  "groupLabels": {"alertname": "AcquirerThrottled"},
+  "commonLabels": {"alertname": "AcquirerThrottled", "service": "acquirer-gateway", "env": "prod"},
+  "commonAnnotations": {
+    "summary": "Доля ответов 429 от эквайера 24% за 2 минуты",
+    "description": "acquirer-gateway получает HTTP 429 на авторизацию карт. Исходящий трафик 560 rps."
+  },
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {"alertname": "AcquirerThrottled", "service": "acquirer-gateway", "env": "prod"},
+      "annotations": {"summary": "Доля ответов 429 от эквайера 24% за 2 минуты"},
+      "startsAt": "2026-10-12T07:18:00Z",
+      "generatorURL": "https://prometheus.lumenpay.ru/graph?g0.expr=acquirer_429_ratio"
+    }
+  ]
+}

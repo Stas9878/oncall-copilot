@@ -1,0 +1,20 @@
+{
+  "version": "4",
+  "status": "firing",
+  "receiver": "oncall-copilot",
+  "groupLabels": {"alertname": "DispatchQueueGrowing"},
+  "commonLabels": {"alertname": "DispatchQueueGrowing", "service": "dispatch", "city": "all"},
+  "commonAnnotations": {
+    "summary": "Очередь dispatch.assign растёт 5 минут, сейчас 1840 сообщений",
+    "description": "Воркеры dispatch живы, CPU 20%. В логах таймауты чтения из orders-db replica."
+  },
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {"alertname": "DispatchQueueGrowing", "service": "dispatch", "city": "all"},
+      "annotations": {"summary": "Очередь dispatch.assign растёт 5 минут, сейчас 1840 сообщений"},
+      "startsAt": "2026-10-12T14:52:00Z",
+      "generatorURL": "https://grafana.kira.dev/alerting/dispatch"
+    }
+  ]
+}

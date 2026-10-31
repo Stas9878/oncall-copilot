@@ -11,7 +11,7 @@ from src.worker import broker
 from src.core.config import get_settings
 from src.core.runtime import open_resources
 from src.core.logs import configure_logging, log
-from src.api.routes import ask, documents, health
+from src.api.routes import ask, documents, health, incidents
 from src.search.index import collection_name, ensure_collection
 
 
@@ -59,4 +59,5 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(documents.router)
     app.include_router(ask.router)
+    app.include_router(incidents.router)
     return app
