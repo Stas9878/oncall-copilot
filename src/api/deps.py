@@ -46,3 +46,13 @@ async def get_principal(
 
 
 PrincipalDep = Annotated[Principal, Depends(get_principal)]
+
+
+async def require_editor(principal: PrincipalDep) -> Principal:
+    """Запись в базу знаний: только ключи с ролью editor."""
+    if not principal.can_write:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Загрузка документов доступна только ключу с ролью editor")
+    return principal
+
+
+EditorDep = Annotated[Principal, Depends(require_editor)]

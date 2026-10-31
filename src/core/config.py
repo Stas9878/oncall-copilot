@@ -35,12 +35,26 @@ class LLMSettings(_Group, env_prefix="LLM_"):
     timeout_seconds: float = 60.0
 
 
+class ModelSettings(_Group, env_prefix="MODELS_"):
+    """Локальная модель эмбеддингов, работает на CPU."""
+
+    text_embedder: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+
+
+class StorageSettings(_Group, env_prefix="STORAGE_"):
+    uploads_dir: str = "data/uploads"
+    max_upload_mb: int = 20
+    max_pdf_pages: int = 50
+
+
 class Settings(_Group):
     environment: str = Field(default="local", alias="APP_ENV")
     postgres: PostgresSettings = Field(default_factory=PostgresSettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
     qdrant: QdrantSettings = Field(default_factory=QdrantSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
+    models: ModelSettings = Field(default_factory=ModelSettings)
+    storage: StorageSettings = Field(default_factory=StorageSettings)
 
 
 @lru_cache(maxsize=1)

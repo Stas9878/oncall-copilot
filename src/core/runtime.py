@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from qdrant_client import AsyncQdrantClient
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from src.search.ml import Models
 from src.core.config import Settings
 from src.db.session import create_engine, create_sessionmaker
 
@@ -21,6 +22,7 @@ class Resources:
     qdrant: AsyncQdrantClient
     local_llm: AsyncOpenAI
     cloud_llm: AsyncOpenAI
+    models: Models
 
 
 @asynccontextmanager
@@ -51,7 +53,8 @@ async def open_resources(settings: Settings) -> AsyncIterator[Resources]:
             redis=redis,
             qdrant=qdrant,
             local_llm=local_llm,
-            cloud_llm=cloud_llm
+            cloud_llm=cloud_llm,
+            models=Models(settings.models)
         )
     finally:
         await local_llm.close()

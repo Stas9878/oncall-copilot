@@ -1,17 +1,17 @@
-"""Команды администратора: команды и ключи."""
+"""Команды администратора: команды, ключи и переиндексация."""
 
 import uuid
 import asyncio
 import argparse
-from sqlalchemy import select
+from sqlalchemy import select, update
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import get_settings
 from src.security.auth import generate_key
-from src.db.models import ApiKey, Role, Tenant
 from src.db.session import create_engine, create_sessionmaker
+from src.db.models import ApiKey, Document, DocumentStatus, Role, Tenant
 
 
 @asynccontextmanager
@@ -46,6 +46,23 @@ async def create_key(slug: str, role: Role, name: str) -> None:
     print(key)
 
 
+async def reindex(slug: str | None) -> None:
+    """Ставит документы в очередь на индексацию заново."""
+    # Брокер импортируется здесь: остальным командам воркер с его настройками не нужен.
+    from src.worker import broker, ingest_document_task
+
+    async with _transaction() as session:
+        query = update(Document).values(status=DocumentStatus.QUEUED, index_version=None).returning(Document.id)
+        if slug is not None:
+            query = query.where(Document.tenant_id == await _tenant_id(session, slug))
+        document_ids = list(await session.scalars(query))
+    await broker.startup()
+    for document_id in document_ids:
+        await ingest_document_task.kiq(str(document_id))
+    await broker.shutdown()
+    print(f"В очереди {len(document_ids)} документов")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="src.cli")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -61,11 +78,16 @@ def main() -> None:
     key.add_argument("role", choices=[role.value for role in Role])
     key.add_argument("--name", default="default")
 
+    reindex_parser = commands.add_parser("reindex", help="переиндексировать документы")
+    reindex_parser.add_argument("--tenant", help="только документы этой команды")
+
     args = parser.parse_args()
     if args.command == "tenant":
         asyncio.run(create_tenant(args.slug, args.name, args.link_domain, args.budget))
-    else:
+    elif args.command == "key":
         asyncio.run(create_key(args.slug, Role(args.role), args.name))
+    else:
+        asyncio.run(reindex(args.tenant))
 
 
 if __name__ == "__main__":
