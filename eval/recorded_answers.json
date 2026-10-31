@@ -1,0 +1,351 @@
+{
+  "fingerprint": {
+    "cloud_model": "gpt-oss:120b-cloud",
+    "local_model": "Qwen/Qwen3-1.7B",
+    "vision_model": "gemma4:31b-cloud",
+    "embedder": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    "reranker": "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
+    "chunker": "sections-v3",
+    "retrieval": "top=4,min=-2.5",
+    "prompt_sha": "b20f55217ed7"
+  },
+  "answers": {
+    "lumen-429": {
+      "answer": "**Что делать:**  \n\n1. Выключить немедленные повторы запросов, установив флаг `ACQUIRER_RETRY_IMMEDIATE=false` [3].  \n2. Убедиться, что повтор запросов происходит только после паузы, указанной в заголовке `Retry-After` (или, если заголовка нет, использовать экспоненциальную паузу от 1 с с джиттером, не более трёх попыток) [1].  \n3. Проверить, что включён ограничитель исходящих запросов на 250 rps в Redis [1][3].  \n4. Не добавлять новые реплики `acquirer-gateway`, так как лимит считается на мерчант-аккаунт и новые реплики лишь увеличат количество повторов [3][4].  \n\n**Почему:**  \n\n- Немедленные повторы удваивают нагрузку на эквайер и приводят к росту 429 (см. 14:04-14:15, когда повтор без паузы поднял нагрузку до 610 rps и доля 429 выросла до 31 %) [2].  \n- Пауза из `Retry-After` и ограничитель 250 rps позволяют держать фактическую нагрузку в пределах лимита договора (300 rps), что снизило долю 429 ниже 1 % [2].  \n- Добавление реплик увеличивает количество параллельных повторов и ухудшает ситуацию, поэтому их не следует масштабировать, пока проблема в внешнем лимите [4].",
+      "citations": [
+        {
+          "number": 1,
+          "filename": "postmortem_2026-08-14_acquirer_429.md",
+          "heading": "Что сделали",
+          "page_number": null
+        },
+        {
+          "number": 2,
+          "filename": "postmortem_2026-08-14_acquirer_429.md",
+          "heading": "Хронология",
+          "page_number": null
+        },
+        {
+          "number": 3,
+          "filename": "runbook_payments_api.pdf",
+          "heading": "429 от эквайера",
+          "page_number": 3
+        },
+        {
+          "number": 4,
+          "filename": "postmortem_2026-08-14_acquirer_429.md",
+          "heading": "Чему научились",
+          "page_number": null
+        }
+      ],
+      "search_query": "Эквайер отвечает 429, что делать?",
+      "backend": "cloud",
+      "model": "gpt-oss:120b-cloud",
+      "degraded_reason": null,
+      "cached": false
+    },
+    "lumen-ledger-pool": {
+      "answer": "**Шаги**\n\n1. Выполнить запрос к `pg_stat_activity`, чтобы увидеть открытые транзакции — особенно те, у кого `xact_start` не NULL [1].  \n   ```sql\n   SELECT pid, usename, now() - xact_start AS age, state\n   FROM pg_stat_activity\n   WHERE xact_start IS NOT NULL\n   ORDER BY age DESC\n   LIMIT 5;\n   ```\n2. Найти транзакцию, которая держит соединения дольше 5 минут и принадлежит пользователю, не связанному с платежами (например, `analytics_ro`) [1][3].  \n3. Завершить её через `pg_terminate_backend(pid)` [1][3].  \n4. Убедиться, что после завершения соединения пул начал освобождаться (проверить `pgbouncer`-статистику) [3].  \n\n**Почему так**  \nПерезапуск `payments-api` не освобождает пул, если соединения удерживает чужая длительная транзакция [1][2]. Поэтому первым делом нужно найти и завершить эту транзакцию — это единственный способ вернуть соединения в пул [3][4].",
+      "citations": [
+        {
+          "number": 1,
+          "filename": "runbook_payments_api.pdf",
+          "heading": "Исчерпан пул ledger",
+          "page_number": 3
+        },
+        {
+          "number": 2,
+          "filename": "postmortem_2026-09-18_ledger_pool.md",
+          "heading": "Чему научились",
+          "page_number": null
+        },
+        {
+          "number": 3,
+          "filename": "postmortem_2026-09-18_ledger_pool.md",
+          "heading": "Хронология",
+          "page_number": null
+        },
+        {
+          "number": 4,
+          "filename": "postmortem_2026-09-18_ledger_pool.md",
+          "heading": "Что сделали",
+          "page_number": null
+        }
+      ],
+      "search_query": "Пул соединений ledger исчерпан, перезапуск payments-api не помог. С чего начать?",
+      "backend": "cloud",
+      "model": "gpt-oss:120b-cloud",
+      "degraded_reason": null,
+      "cached": false
+    },
+    "lumen-idempotency": {
+      "answer": "Нет, повторять авторизацию платежа с новым Idempotency-Key нельзя — повторять нужно только с тем же ключом, иначе есть риск двойного списания [1][2].",
+      "citations": [
+        {
+          "number": 1,
+          "filename": "runbook_payments_api.pdf",
+          "heading": "Повтор платежа",
+          "page_number": 3
+        },
+        {
+          "number": 2,
+          "filename": "postmortem_2026-08-14_acquirer_429.md",
+          "heading": "Что сделали",
+          "page_number": null
+        }
+      ],
+      "search_query": "Можно ли повторить авторизацию платежа с новым Idempotency-Key?",
+      "backend": "cloud",
+      "model": "gpt-oss:120b-cloud",
+      "degraded_reason": null,
+      "cached": false
+    },
+    "lumen-redis-down": {
+      "answer": "**Что делать:**\n\n1. Остановить приём карточных платежей, установив флаг `CARDS_ENABLED=false`.  \n2. Оставить приём платежей по СБП (они не зависят от этого Redis).  \n\n**Почему:**  \nВ случае недоступности Redis, где хранятся ключи идемпотентности, «карточные платежи принимать нельзя» — поэтому их нужно отключить, а СБП можно продолжать — это указано в пункте «IdempotencyStoreDown» в таблице алертов и первых действий [2].",
+      "citations": [
+        {
+          "number": 2,
+          "filename": "runbook_payments_api.pdf",
+          "heading": "Алерты и первые действия",
+          "page_number": 2
+        }
+      ],
+      "search_query": "Упал Redis идемпотентности, что делать с приёмом платежей?",
+      "backend": "cloud",
+      "model": "gpt-oss:120b-cloud",
+      "degraded_reason": null,
+      "cached": false
+    },
+    "lumen-escalation": {
+      "answer": "**Шаги:**\n1. Позвонить второму дежурному (сентябрь) — Анна Соколова по номеру +7 916 204-55-81 — если за 30 минут SEV1 не стабилизирован [1].\n2. Если и после этого проблема не решена, вызвать руководителя направления платежей — Дмитрий Орлов по номеру +7 903 118-40-27 — по той же причине [1].\n\n**Причина:** Согласно политике эскалации, при невозможности стабилизировать сервис за 30 минут при SEV1 дежурный обязан вызвать второго дежурного, а затем руководителя направления [1].",
+      "citations": [
+        {
+          "number": 1,
+          "filename": "oncall_policy_lumen.md",
+          "heading": "Эскалация",
+          "page_number": null
+        }
+      ],
+      "search_query": "Кому звонить, если SEV1 не стабилизирован за 30 минут?",
+      "backend": "cloud",
+      "model": "gpt-oss:120b-cloud",
+      "degraded_reason": null,
+      "cached": false
+    },
+    "lumen-backup-acquirer": {
+      "answer": "**Шаги:**\n\n1. Согласовать переключение с руководителем направления.  \n2. В админке шлюза выбрать пользователя **Эквайеры**, перейти в раздел **«Резервный»** и нажать **«Включить»**.  \n3. Провести тестовый платёж на 1 рубль, чтобы убедиться в работоспособности резервного эквайера.  \n4. Записать время переключения в канал инцидента.  \n\n**Причина:** Эти действия позволяют быстро перенаправить трафик на резервного эквайера, минимизировать простой и проверить корректность работы, а запись времени обеспечивает документирование изменения для последующего анализа и обратного переключения после 2 часов без ошибок [1].",
+      "citations": [
+        {
+          "number": 1,
+          "filename": "runbook_payments_api.pdf",
+          "heading": "Ручное переключение на резервного эквайера",
+          "page_number": 4
+        }
+      ],
+      "search_query": "Как переключиться на резервного эквайера?",
+      "backend": "cloud",
+      "model": "gpt-oss:120b-cloud",
+      "degraded_reason": null,
+      "cached": false
+    },
+    "lumen-dashboard": {
+      "answer": "Дашборд payments-api в 14:05 показал одновременное ухудшение четырёх метрик:  \n\n* p95 latency ≈ 9 000 ms (резко выросло с 0 мс) [1]  \n* 5xx rate ≈ 40 % (резко поднялось с 0 %) [1]  \n* free connections в pgbouncer упали с ≈ 140 conn до 0 conn и оставались низкими до 14:30 [1]  \n* requests упали с ≈ 280 rps до ≈ 100 rps, колебались до 14:40 [1]  ",
+      "citations": [
+        {
+          "number": 1,
+          "filename": "grafana_payments_2026-09-18.png",
+          "heading": "grafana_payments_2026-09-18.png, 18 сентября 2026",
+          "page_number": null
+        }
+      ],
+      "search_query": "Что показывал дашборд платежей 18 сентября около 14:05?",
+      "backend": "cloud",
+      "model": "gpt-oss:120b-cloud",
+      "degraded_reason": null,
+      "cached": false
+    },
+    "lumen-screen": {
+      "answer": "**Что происходит**\nНаблюдается рост доли ответов 429 от эквайера (примерно до 25%) [график] и резкий скачок исходящего трафика с ~250 rps до ~600 rps [график]. Это соответствует алерту `AcquirerThrottled` [2].\n\n**Что делать**\n1. Выключить немедленные повторы флагом `ACQUIRER_RETRY_IMMEDIATE=false` [2, 4].\n2. Проверить ограничитель исходящих запросов на 250 rps [2, 4].\n3. Не добавлять реплики acquirer-gateway [2, 4].\n4. Убедиться, что повторы выполняются после паузы из заголовка `Retry-After` [4].\n\n**Причина**\nПри получении 429 ответов система может начать выполнять немедленные повторы, что увеличивает фактическую нагрузку на эквайера и приводит к росту доли ошибок [3]. Добавление реплик в такой ситуации только увеличивает количество повторов [3, 4].",
+      "citations": [
+        {
+          "number": 2,
+          "filename": "runbook_payments_api.pdf",
+          "heading": "Алерты и первые действия",
+          "page_number": 2
+        },
+        {
+          "number": 3,
+          "filename": "postmortem_2026-08-14_acquirer_429.md",
+          "heading": "Хронология",
+          "page_number": null
+        },
+        {
+          "number": 4,
+          "filename": "runbook_payments_api.pdf",
+          "heading": "429 от эквайера",
+          "page_number": 3
+        }
+      ],
+      "search_query": "Что происходит и что делать?\nРост ответов 429 от acquirer-gateway, рост задержки p95 и падение success rate.",
+      "backend": "cloud",
+      "model": "gemma4:31b-cloud",
+      "degraded_reason": null,
+      "cached": false
+    },
+    "lumen-no-kafka": {
+      "answer": "В базе знаний команды нет ответа на этот вопрос.",
+      "citations": [],
+      "search_query": "Как настроить consumer lag в Kafka?",
+      "backend": null,
+      "model": null,
+      "degraded_reason": null,
+      "cached": false
+    },
+    "lumen-other-tenant-canary": {
+      "answer": "В базе знаний команды нет ответа на этот вопрос.",
+      "citations": [],
+      "search_query": "Какой код двери серверной на складе Север?",
+      "backend": null,
+      "model": null,
+      "degraded_reason": null,
+      "cached": false
+    },
+    "kira-queue": {
+      "answer": "1. Проверьте, чего ждут воркеры — ищите тайм-ауты чтения из реплики orders-db в их логах.  \n2. Если найдены тайм-ауты, посмотрите степень отставания реплики (lag).  \n\n**Почему:** При живых воркерах рост очереди обычно вызван тем, что воркеры блокируются ожиданием данных из реплики; тайм-ауты чтения указывают на отставание реплики, а включение `DISPATCH_READ_PRIMARY=true` решает проблему (см. [1], [2], [4]).",
+      "citations": [
+        {
+          "number": 1,
+          "filename": "runbook_dispatch.pdf",
+          "heading": "Очередь dispatch.assign растёт",
+          "page_number": 3
+        },
+        {
+          "number": 2,
+          "filename": "runbook_dispatch.pdf",
+          "heading": "Алерты и первые действия",
+          "page_number": 2
+        },
+        {
+          "number": 4,
+          "filename": "postmortem_2026-09-30_dispatch_queue.md",
+          "heading": "Хронология",
+          "page_number": null
+        }
+      ],
+      "search_query": "Очередь dispatch.assign растёт, воркеры живы. Что проверить?",
+      "backend": "cloud",
+      "model": "gpt-oss:120b-cloud",
+      "degraded_reason": null,
+      "cached": false
+    },
+    "kira-geocoder-402": {
+      "answer": "**Шаги:**  \n1. Не повторять запросы к внешнему геокодеру, а сразу включить запасной режим — установить флаг `GEOCODER_FALLBACK=true` [3][2].  \n2. Переключить геокодирование на резервного провайдера, чтобы обработать накопившиеся заказы [1][4].  \n3. При необходимости увеличить кэш-хранилище (уже продлено до 30 дней) [4].\n\n**Причина:**  \nHTTP 402 `quota exceeded` означает, что месячная квота полностью израсходована [2]; повторные запросы бесполезны и только увеличивают очередь [1][2]. Поэтому необходимо сразу использовать резервный провайдер, как предписано в ранобуке и в постмортеме [3][4].",
+      "citations": [
+        {
+          "number": 1,
+          "filename": "postmortem_2026-07-22_geocoder_quota.md",
+          "heading": "Хронология",
+          "page_number": null
+        },
+        {
+          "number": 2,
+          "filename": "runbook_dispatch.pdf",
+          "heading": "Ошибки геокодера: 402 и 429",
+          "page_number": 3
+        },
+        {
+          "number": 3,
+          "filename": "runbook_dispatch.pdf",
+          "heading": "Алерты и первые действия",
+          "page_number": 2
+        },
+        {
+          "number": 4,
+          "filename": "postmortem_2026-07-22_geocoder_quota.md",
+          "heading": "Что сделали",
+          "page_number": null
+        }
+      ],
+      "search_query": "Геокодер вернул 402, повторять запросы?",
+      "backend": "cloud",
+      "model": "gpt-oss:120b-cloud",
+      "degraded_reason": null,
+      "cached": false
+    },
+    "kira-peak-checklist": {
+      "answer": "1. Отставание реплики orders-db меньше 5 секунд.  \n2. Расход квоты геокодера меньше 80 %.  \n3. Очередь dispatch.assign меньше 100 сообщений.  \n4. Нет миграций и пересоздания индексов.  \n5. Баланс $М$-провайдера больше 50 000 рублей. [1]",
+      "citations": [
+        {
+          "number": 1,
+          "filename": "runbook_dispatch.pdf",
+          "heading": "Чек-лист перед вечерним пиком, 17:30",
+          "page_number": 4
+        }
+      ],
+      "search_query": "Что проверить перед вечерним пиком?",
+      "backend": "cloud",
+      "model": "gpt-oss:120b-cloud",
+      "degraded_reason": null,
+      "cached": false
+    },
+    "kira-index-at-peak": {
+      "answer": "Нет, нельзя.  \n\n**Шаги:**  \n1. Не выполнять пересоздание индекса на реплике orders-db в любой момент между 17:00 и 21:00 — это время считается пиковым [3].  \n2. Пересоздавать индексы только на основной базе, используя `CREATE INDEX CONCURRENTLY` [3].  \n\n**Причина:** Пересоздание индекса на реплике приводит к отставанию реплики, что в свою очередь блокирует воркеры dispatch и может вызвать рост очереди, как это произошло в инциденте [2]. Поэтому в 18:00 (внутри пикового окна) такой операции выполнять нельзя.",
+      "citations": [
+        {
+          "number": 2,
+          "filename": "postmortem_2026-09-30_dispatch_queue.md",
+          "heading": "Причина",
+          "page_number": null
+        },
+        {
+          "number": 3,
+          "filename": "runbook_dispatch.pdf",
+          "heading": "Отставание реплики",
+          "page_number": 3
+        }
+      ],
+      "search_query": "Можно ли пересоздать индекс orders-db в 18:00?",
+      "backend": "cloud",
+      "model": "gpt-oss:120b-cloud",
+      "degraded_reason": null,
+      "cached": false
+    },
+    "kira-scaling-postmortem": {
+      "answer": "**Что сделать, если масштабирование не помогает росту очереди**\n\n1. Проверьте, какие внешние ресурсы используют воркеры (базы, сервисы, файлы).  \n2. Посмотрите логи воркеров — ищите тайм-ауты, ошибки чтения/записи.  \n3. Если обнаружены задержки в доступе к внешнему ресурсу, переключите воркеры на альтернативный источник (например, на основную БД) или исправьте проблему с репликой.  \n4. После восстановления доступа проверьте, снижается ли очередь; только после этого можно рассматривать увеличение числа воркеров.  \n\n**Почему добавление воркеров 30 сентября не помогло**\n\n- Воркеры `dispatch` читали статус заказа из реплики `orders-db`, которая отставала — задержка достигла 95 секунд [1][2].  \n- Из-за этой задержки новые воркеры тоже ждали появления заказа, поэтому их количество не влияло на скорость обработки сообщений. Масштабирование помогает только тогда, когда узким местом является процессор воркеров, а не внешний ресурс, от которого они зависят [3].  \n\nТаким образом, увеличение числа воркеров не решило проблему, потому что коренной причиной был лаг реплики, а не нехватка вычислительных ресурсов.",
+      "citations": [
+        {
+          "number": 1,
+          "filename": "postmortem_2026-09-30_dispatch_queue.md",
+          "heading": "Причина",
+          "page_number": null
+        },
+        {
+          "number": 2,
+          "filename": "postmortem_2026-09-30_dispatch_queue.md",
+          "heading": "Хронология",
+          "page_number": null
+        },
+        {
+          "number": 3,
+          "filename": "postmortem_2026-09-30_dispatch_queue.md",
+          "heading": "Чему научились",
+          "page_number": null
+        }
+      ],
+      "search_query": "Почему добавление воркеров не помогло 30 сентября?",
+      "backend": "cloud",
+      "model": "gpt-oss:120b-cloud",
+      "degraded_reason": null,
+      "cached": false
+    },
+    "kira-no-tls": {
+      "answer": "В базе знаний команды нет ответа на этот вопрос.",
+      "citations": [],
+      "search_query": "Как продлить сертификат TLS на балансировщике?",
+      "backend": null,
+      "model": null,
+      "degraded_reason": null,
+      "cached": false
+    }
+  }
+}

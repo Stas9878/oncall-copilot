@@ -1,0 +1,57 @@
+# Проверки на каждый push и pull request. Модели здесь не вызываются:
+# поиск оценивается на локальных эмбеддингах, ответы — по записанному файлу.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: copilot
+          POSTGRES_PASSWORD: copilot
+          POSTGRES_DB: copilot
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U copilot" --health-interval 5s --health-retries 10
+      redis:
+        image: redis:8.8.3-alpine
+        ports: ["6379:6379"]
+      qdrant:
+        image: qdrant/qdrant:v1.19.2
+        ports: ["6333:6333"]
+    env:
+      POSTGRES_DSN: postgresql+asyncpg://copilot:copilot@localhost:5432/copilot
+      REDIS_URL: redis://localhost:6379/0
+      QDRANT_URL: http://localhost:6333
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Tesseract для OCR
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-rus
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Кэш моделей Hugging Face
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ hashFiles('src/core/config.py') }}
+
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run alembic upgrade head
+
+      - name: Тесты, проверка записанных ответов и модель угроз
+        run: uv run pytest
+
+      - name: Оценка поиска на эталонных кейсах
+        run: |
+          uv run python -m src.evals seed --skip-images
+          uv run python -m src.evals retrieval --skip-images

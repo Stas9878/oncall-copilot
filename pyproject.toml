@@ -28,6 +28,7 @@ dev = [
     "httpx>=0.28.1",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
+    "ruff>=0.17.0",
 ]
 
 [tool.pytest.ini_options]
@@ -38,3 +39,15 @@ testpaths = ["tests"]
 pythonpath = ["."]
 markers = ["integration: нужны Postgres, Redis и Qdrant из docker compose"]
 filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "UP", "SIM", "ASYNC"]
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# Миграции генерирует Alembic, длинные строки в них не переносим.
+"migrations/versions/*" = ["E501"]

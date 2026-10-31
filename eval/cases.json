@@ -1,0 +1,113 @@
+[
+  {
+    "id": "lumen-429",
+    "tenant": "lumen",
+    "question": "Эквайер отвечает 429, что делать?",
+    "expected_sections": [["runbook_payments_api.pdf", "429 от эквайера"], ["runbook_payments_api.pdf", "Алерты и первые действия"], ["postmortem_2026-08-14_acquirer_429.md", "Что сделали"]],
+    "must_contain": ["ACQUIRER_RETRY_IMMEDIATE=false", "250 rps"]
+  },
+  {
+    "id": "lumen-ledger-pool",
+    "tenant": "lumen",
+    "question": "Пул соединений ledger исчерпан, перезапуск payments-api не помог. С чего начать?",
+    "expected_sections": [["runbook_payments_api.pdf", "Исчерпан пул ledger"], ["postmortem_2026-09-18_ledger_pool.md", "Хронология"], ["postmortem_2026-09-18_ledger_pool.md", "Причина"]],
+    "must_contain": ["pg_stat_activity"]
+  },
+  {
+    "id": "lumen-idempotency",
+    "tenant": "lumen",
+    "question": "Можно ли повторить авторизацию платежа с новым Idempotency-Key?",
+    "expected_sections": [["runbook_payments_api.pdf", "Повтор платежа"]],
+    "must_contain": ["Idempotency-Key"]
+  },
+  {
+    "id": "lumen-redis-down",
+    "tenant": "lumen",
+    "question": "Упал Redis идемпотентности, что делать с приёмом платежей?",
+    "expected_sections": [["runbook_payments_api.pdf", "Алерты и первые действия"]],
+    "must_contain": ["CARDS_ENABLED=false"]
+  },
+  {
+    "id": "lumen-escalation",
+    "tenant": "lumen",
+    "question": "Кому звонить, если SEV1 не стабилизирован за 30 минут?",
+    "expected_sections": [["oncall_policy_lumen.md", "Эскалация"]],
+    "must_contain": ["+7 916 204-55-81"]
+  },
+  {
+    "id": "lumen-backup-acquirer",
+    "tenant": "lumen",
+    "question": "Как переключиться на резервного эквайера?",
+    "expected_sections": [["runbook_payments_api.pdf", "Ручное переключение на резервного эквайера"]],
+    "must_contain": ["1 рубль"]
+  },
+  {
+    "id": "lumen-dashboard",
+    "tenant": "lumen",
+    "question": "Что показывал дашборд платежей 18 сентября около 14:05?",
+    "expected_sections": [["grafana_payments_2026-09-18.png", "grafana_payments_2026-09-18.png"], ["postmortem_2026-09-18_ledger_pool.md", "Хронология"]],
+    "must_contain": ["p95"]
+  },
+  {
+    "id": "lumen-screen",
+    "tenant": "lumen",
+    "question": "Что происходит и что делать?",
+    "image": "examples/lumen_acquirer_live.png",
+    "expected_sections": [["runbook_payments_api.pdf", "Алерты и первые действия"], ["runbook_payments_api.pdf", "429 от эквайера"], ["postmortem_2026-08-14_acquirer_429.md", "Что сделали"]],
+    "must_contain": ["429"]
+  },
+  {
+    "id": "lumen-no-kafka",
+    "tenant": "lumen",
+    "question": "Как настроить consumer lag в Kafka?",
+    "expect_no_answer": true
+  },
+  {
+    "id": "lumen-other-tenant-canary",
+    "tenant": "lumen",
+    "question": "Какой код двери серверной на складе Север?",
+    "expect_no_answer": true,
+    "must_not_contain": ["CANARY-KIRA-7731"]
+  },
+  {
+    "id": "kira-queue",
+    "tenant": "kira",
+    "question": "Очередь dispatch.assign растёт, воркеры живы. Что проверить?",
+    "expected_sections": [["runbook_dispatch.pdf", "Очередь dispatch.assign растёт"], ["runbook_dispatch.pdf", "Алерты и первые действия"]],
+    "must_contain": ["DISPATCH_READ_PRIMARY=true"]
+  },
+  {
+    "id": "kira-geocoder-402",
+    "tenant": "kira",
+    "question": "Геокодер вернул 402, повторять запросы?",
+    "expected_sections": [["runbook_dispatch.pdf", "Ошибки геокодера: 402 и 429"], ["postmortem_2026-07-22_geocoder_quota.md", "Чему научились"]],
+    "must_contain": ["GEOCODER_FALLBACK=true"]
+  },
+  {
+    "id": "kira-peak-checklist",
+    "tenant": "kira",
+    "question": "Что проверить перед вечерним пиком?",
+    "expected_sections": [["runbook_dispatch.pdf", "Чек-лист перед вечерним пиком, 17:30"]],
+    "must_contain": ["80%"]
+  },
+  {
+    "id": "kira-index-at-peak",
+    "tenant": "kira",
+    "question": "Можно ли пересоздать индекс orders-db в 18:00?",
+    "expected_sections": [["runbook_dispatch.pdf", "Отставание реплики"], ["oncall_policy_kira.md", "Правила смены"]],
+    "must_contain": ["CONCURRENTLY"]
+  },
+  {
+    "id": "kira-scaling-postmortem",
+    "tenant": "kira",
+    "question": "Почему добавление воркеров не помогло 30 сентября?",
+    "expected_sections": [["postmortem_2026-09-30_dispatch_queue.md", "Причина"], ["postmortem_2026-09-30_dispatch_queue.md", "Чему научились"]],
+    "must_contain": ["реплик"]
+  },
+  {
+    "id": "kira-no-tls",
+    "tenant": "kira",
+    "question": "Как продлить сертификат TLS на балансировщике?",
+    "expect_no_answer": true
+  }
+]
