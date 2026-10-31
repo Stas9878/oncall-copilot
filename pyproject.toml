@@ -23,6 +23,7 @@ dependencies = [
     "taskiq>=0.13.0",
     "taskiq-redis>=1.2.4",
     "tiktoken>=0.14.0",
+    "torch>=2.14.1",
     "uvicorn[standard]>=0.54.0",
 ]
 
@@ -54,3 +55,11 @@ ignore = ["B008"]
 [tool.ruff.lint.per-file-ignores]
 # Миграции генерирует Alembic, длинные строки в них не переносим.
 "migrations/versions/*" = ["E501"]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

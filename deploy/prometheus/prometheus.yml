@@ -8,11 +8,12 @@ rule_files:
 scrape_configs:
   - job_name: api
     static_configs:
-      - targets: ["host.docker.internal:8080"]
+      - targets: ["api:8080"]
   - job_name: worker
     static_configs:
-      - targets: ["host.docker.internal:9000"]
-  # vLLM работает на хосте отдельно от compose, порт 8000.
+      - targets: ["worker:9000"]
+  # vLLM слушает порт 8000 на хосте: запущен отдельно или профилем local-llm
+  # этого compose.
   - job_name: vllm
     static_configs:
       - targets: ["host.docker.internal:8000"]

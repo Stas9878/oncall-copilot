@@ -1,7 +1,63 @@
-# Инфраструктура сервиса: docker compose up -d
+# Все сервисы: docker compose up -d
+# С локальным vLLM в том же compose: docker compose --profile local-llm up -d
 # Порты на хосте меняются переменными *_HOST_PORT, если стандартные заняты.
 
+x-app: &app
+  build: .
+  image: oncall-copilot
+  env_file: .env
+  environment:
+    POSTGRES_DSN: postgresql+asyncpg://copilot:copilot@postgres:5432/copilot
+    REDIS_URL: redis://redis:6379/0
+    QDRANT_URL: http://qdrant:6333
+    TELEMETRY_PHOENIX_ENDPOINT: http://phoenix:4317
+    # vLLM и Ollama работают на хосте, из контейнера они видны как host.docker.internal.
+    LLM_LOCAL_BASE_URL: http://host.docker.internal:${VLLM_HOST_PORT:-8000}/v1
+    LLM_CLOUD_BASE_URL: http://host.docker.internal:11434/v1
+    APP_ENV: docker
+  volumes:
+    - uploads:/app/data/uploads
+    - models:/models
+  extra_hosts:
+    # Чтобы имя host.docker.internal работало и на Linux.
+    - "host.docker.internal:host-gateway"
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+    redis:
+      condition: service_healthy
+    qdrant:
+      condition: service_started
+
 services:
+  api:
+    <<: *app
+    # Эмбеддер, реранкер и NER занимают около 1,7 ГБ. Лимит не даёт API под
+    # нагрузкой забрать память у vLLM: при нехватке перезапустится сам API.
+    mem_limit: 3g
+    restart: unless-stopped
+    # Свой лог запросов с request_id пишет приложение, лог доступа uvicorn его дублировал бы.
+    command: ["uvicorn", "src.api.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8080", "--no-access-log"]
+    ports:
+      - "${API_HOST_PORT:-8080}:8080"
+
+  worker:
+    <<: *app
+    mem_limit: 2g
+    restart: unless-stopped
+    command: ["taskiq", "worker", "src.worker:broker", "--workers", "1"]
+
+  migrate:
+    build: .
+    image: oncall-copilot
+    env_file: .env
+    environment:
+      POSTGRES_DSN: postgresql+asyncpg://copilot:copilot@postgres:5432/copilot
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   postgres:
     image: postgres:18-alpine
     environment:
@@ -50,7 +106,29 @@ services:
     ports:
       - "${PROMETHEUS_HOST_PORT:-9090}:9090"
 
+  vllm:
+    # vLLM на CPU с окном 2048 токенов: под него собирается резервный промпт.
+    profiles: ["local-llm"]
+    image: vllm/vllm-openai-cpu:${VLLM_IMAGE_TAG:-v0.31.0-arm64}
+    command:
+      - Qwen/Qwen3-1.7B
+      - --host=0.0.0.0
+      - --port=8000
+      - --dtype=float16
+      - --max-model-len=2048
+      - --enforce-eager
+    shm_size: 4g
+    environment:
+      VLLM_CPU_KVCACHE_SPACE: "2"
+      VLLM_CPU_NUM_OF_RESERVED_CPU: "1"
+    volumes:
+      - models:/root/.cache/huggingface
+    ports:
+      - "${VLLM_HOST_PORT:-8000}:8000"
+
 volumes:
   postgres:
   qdrant:
   phoenix:
+  uploads:
+  models:
