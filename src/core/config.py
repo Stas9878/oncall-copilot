@@ -70,6 +70,12 @@ class StorageSettings(_Group, env_prefix="STORAGE_"):
     max_pdf_pages: int = 50
 
 
+class TelemetrySettings(_Group, env_prefix="TELEMETRY_"):
+    phoenix_endpoint: str = "http://localhost:4317"
+    project_name: str = "oncall-copilot"
+    enabled: bool = True
+
+
 class Settings(_Group):
     environment: str = Field(default="local", alias="APP_ENV")
     postgres: PostgresSettings = Field(default_factory=PostgresSettings)
@@ -80,6 +86,7 @@ class Settings(_Group):
     retrieval: RetrievalSettings = Field(default_factory=RetrievalSettings)
     limits: LimitSettings = Field(default_factory=LimitSettings)
     storage: StorageSettings = Field(default_factory=StorageSettings)
+    telemetry: TelemetrySettings = Field(default_factory=TelemetrySettings)
 
 
 @lru_cache(maxsize=1)

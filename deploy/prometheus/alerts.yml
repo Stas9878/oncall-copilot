@@ -1,0 +1,51 @@
+# Каждое правило: что читаем, порог, пауза for, срочность и первое действие.
+# page — нужна реакция сразу, ticket — можно разобрать в рабочее время.
+groups:
+  - name: oncall-copilot
+    rules:
+      - alert: CopilotApiErrors
+        expr: |
+          sum(rate(copilot_http_requests_total{status=~"5.."}[5m]))
+            / sum(rate(copilot_http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Больше 5% ответов API — ошибки 5xx"
+          action: "Открыть /ready: какая зависимость не отвечает. Логи api по request_id."
+
+      - alert: VllmQueueWaiting
+        expr: vllm:num_requests_waiting > 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Запросы к локальной модели ждут в очереди vLLM пять минут"
+          action: "Снизить параллельные фоновые задачи или добавить реплику vLLM."
+
+      - alert: CopilotCloudFallback
+        expr: sum(increase(copilot_llm_fallbacks_total[10m])) > 5
+        for: 10m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Ответы даёт резервная локальная модель"
+          action: "Проверить статус Ollama Cloud и месячный бюджет команды в copilot_tenant_month_tokens."
+
+      - alert: CopilotTenantBudget80
+        expr: copilot_tenant_month_tokens / copilot_tenant_budget_tokens > 0.8
+        for: 30m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Команда {{ $labels.tenant }} израсходовала 80% месячного бюджета токенов"
+          action: "Решить, поднимать ли бюджет: python -m src.cli budget <команда> <токенов>. Без этого после исчерпания ответы даст локальная модель."
+
+      - alert: CopilotIngestErrors
+        expr: sum(increase(found_errors_total[15m])) > 3
+        for: 0m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Индексация документов падает с ошибками"
+          action: "GET /v1/documents: поле error у документов в статусе failed. Логи worker."

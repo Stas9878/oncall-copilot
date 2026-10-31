@@ -13,6 +13,7 @@ from src.core.logs import log
 from src.db.models import TokenUsage
 from src.core.runtime import Resources
 from src.security.auth import Principal
+from src.observability.metrics import LLM_FALLBACKS, LLM_TOKENS, TENANT_BUDGET_TOKENS, TENANT_MONTH_TOKENS
 
 FAILURE_LIMIT = 3
 FAILURE_WINDOW_SECONDS = 60
@@ -122,6 +123,8 @@ async def month_tokens(resources: Resources, tenant_id: uuid.UUID) -> int:
 
 async def record_usage(resources: Resources, tenant_id: uuid.UUID, completion: Completion) -> None:
     """Расход облачных токенов команды. Локальная модель квоту не тратит."""
+    LLM_TOKENS.labels(completion.backend, completion.model, "prompt").inc(completion.prompt_tokens)
+    LLM_TOKENS.labels(completion.backend, completion.model, "completion").inc(completion.completion_tokens)
     if completion.backend != "cloud":
         return
     statement = insert(TokenUsage).values(
@@ -153,6 +156,8 @@ class LLMRouter:
         if await self._breaker.is_open():
             return "облачная модель недоступна"
         used = await month_tokens(self._resources, principal.tenant_id)
+        TENANT_MONTH_TOKENS.labels(principal.tenant_slug).set(used)
+        TENANT_BUDGET_TOKENS.labels(principal.tenant_slug).set(principal.monthly_token_budget)
         if used >= principal.monthly_token_budget:
             return "исчерпан месячный бюджет токенов команды"
         return None
@@ -219,6 +224,7 @@ class LLMRouter:
                 await record_usage(self._resources, principal.tenant_id, completion)
                 return completion
 
+        LLM_FALLBACKS.labels(reason).inc()
         try:
             response = await self._resources.local_llm.chat.completions.create(**self._local_kwargs(local), **extra)
         except (openai.APIConnectionError, openai.APIStatusError) as error:
@@ -253,6 +259,7 @@ class LLMRouter:
                 await self._breaker.success()
                 return
 
+        LLM_FALLBACKS.labels(reason).inc()
         try:
             stream = await self._resources.local_llm.chat.completions.create(**self._local_kwargs(local), **options)
         except (openai.APIConnectionError, openai.APIStatusError) as error:

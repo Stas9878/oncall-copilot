@@ -4,6 +4,7 @@ import asyncio
 from sqlalchemy import text
 from collections.abc import Awaitable
 from fastapi import APIRouter, Response, status
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from src.api.deps import ResourcesDep
 from src.core.runtime import Resources
@@ -60,3 +61,8 @@ async def ready(resources: ResourcesDep, response: Response) -> dict[str, object
     if not is_ready:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return {"status": "ok" if is_ready else "unavailable", "dependencies": core | llm}
+
+
+@router.get("/metrics", include_in_schema=False)
+async def metrics() -> Response:
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)

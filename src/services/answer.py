@@ -11,7 +11,10 @@ from src.security.auth import Principal
 from src.search.query import search_query
 from src.search.retrieval import retrieve
 from src.security.pii import Pseudonymizer
+from src.observability.metrics import ANSWERS
 from src.generation.output import OutputFilter
+from src.observability.telemetry import tracer
+from src.observability.versions import fingerprint
 from src.generation.llm import Completion, LLMRouter, Prompt
 from src.ingestion.captions import SEARCH_PROMPT, describe_image, image_mime
 from src.generation.prompt import (
@@ -104,9 +107,16 @@ async def _prepare(
     query = await search_query(router, question.text, history)
     # Вопрос идёт первым: эмбеддер обрезает длинный текст с конца.
     retrieval_query = f"{query}\n{description}" if description else query
-    sources = await retrieve(
-        resources, principal, retrieval_query, limit=settings.top_sections, min_score=settings.min_score
-    )
+    with tracer().start_as_current_span("retrieve", openinference_span_kind="retriever") as span:
+        span.set_input(retrieval_query)
+        sources = await retrieve(
+            resources,
+            principal,
+            retrieval_query,
+            limit=settings.top_sections,
+            min_score=settings.min_score
+        )
+        span.set_output([{"file": s.filename, "section": s.heading, "score": s.score} for s in sources])
     if not sources:
         return Answer(NO_ANSWER, [], retrieval_query)
 
@@ -141,6 +151,31 @@ def _cacheable(question: Question) -> bool:
     return not question.history and question.image is None
 
 
+def _annotate(span, resources: Resources, principal: Principal, question: Question) -> None:
+    span.set_attributes(
+        {"tenant": principal.tenant_slug, **{f"fingerprint.{k}": v for k, v in fingerprint(resources.settings).items()}}
+    )
+    span.set_input(Pseudonymizer().mask(question.text))
+
+
+def _count(result: Answer) -> None:
+    if result.cached:
+        ANSWERS.labels("cached").inc()
+    elif result.backend is None:
+        ANSWERS.labels("no_answer").inc()
+    else:
+        ANSWERS.labels("degraded" if result.degraded_reason else "answered").inc()
+
+
+async def answer(resources: Resources, principal: Principal, question: Question) -> Answer:
+    with tracer().start_as_current_span("ask", openinference_span_kind="chain") as span:
+        _annotate(span, resources, principal, question)
+        result = await _answer(resources, principal, question)
+        span.set_attributes({"outcome.cached": result.cached, "outcome.backend": result.backend or "none"})
+    _count(result)
+    return result
+
+
 async def _cached(resources: Resources, principal: Principal, question: Question) -> Answer | None:
     if not _cacheable(question):
         return None
@@ -157,7 +192,7 @@ async def _remember(resources: Resources, principal: Principal, question: Questi
         await cache.put_answer(resources.redis, principal.tenant_id, question.text, asdict(result))
 
 
-async def answer(resources: Resources, principal: Principal, question: Question) -> Answer:
+async def _answer(resources: Resources, principal: Principal, question: Question) -> Answer:
     if hit := await _cached(resources, principal, question):
         return hit
 
@@ -185,6 +220,16 @@ def _finish(prepared: _Prepared, completion: Completion, text: str) -> Answer:
 
 async def answer_stream(resources: Resources, principal: Principal, question: Question) -> AsyncIterator[str | Answer]:
     """Части ответа по мере генерации, последним элементом — Answer с цитатами и метаданными."""
+    with tracer().start_as_current_span("ask_stream", openinference_span_kind="chain") as span:
+        _annotate(span, resources, principal, question)
+        async for item in _answer_stream(resources, principal, question):
+            if isinstance(item, Answer):
+                span.set_attribute("outcome.backend", item.backend or "none")
+                _count(item)
+            yield item
+
+
+async def _answer_stream(resources: Resources, principal: Principal, question: Question) -> AsyncIterator[str | Answer]:
     if hit := await _cached(resources, principal, question):
         yield hit.answer
         yield hit

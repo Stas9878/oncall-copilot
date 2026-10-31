@@ -28,6 +28,7 @@ jobs:
       POSTGRES_DSN: postgresql+asyncpg://copilot:copilot@localhost:5432/copilot
       REDIS_URL: redis://localhost:6379/0
       QDRANT_URL: http://localhost:6333
+      TELEMETRY_ENABLED: "false"
     steps:
       - uses: actions/checkout@v5
 

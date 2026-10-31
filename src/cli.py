@@ -1,4 +1,4 @@
-"""Команды администратора: команды, ключи и переиндексация."""
+"""Команды администратора: команды, ключи, бюджет и переиндексация."""
 
 import uuid
 import asyncio
@@ -46,6 +46,13 @@ async def create_key(slug: str, role: Role, name: str) -> None:
     print(key)
 
 
+async def set_budget(slug: str, tokens: int) -> None:
+    async with _transaction() as session:
+        tenant_id = await _tenant_id(session, slug)
+        await session.execute(update(Tenant).where(Tenant.id == tenant_id).values(monthly_token_budget=tokens))
+    print(f"Бюджет {slug}: {tokens} токенов в месяц")
+
+
 async def reindex(slug: str | None) -> None:
     """Ставит документы в очередь на индексацию заново."""
     # Брокер импортируется здесь: остальным командам воркер с его настройками не нужен.
@@ -78,6 +85,10 @@ def main() -> None:
     key.add_argument("role", choices=[role.value for role in Role])
     key.add_argument("--name", default="default")
 
+    budget = commands.add_parser("budget", help="месячный бюджет облачных токенов команды")
+    budget.add_argument("slug")
+    budget.add_argument("tokens", type=int)
+
     reindex_parser = commands.add_parser("reindex", help="переиндексировать документы")
     reindex_parser.add_argument("--tenant", help="только документы этой команды")
 
@@ -86,6 +97,8 @@ def main() -> None:
         asyncio.run(create_tenant(args.slug, args.name, args.link_domain, args.budget))
     elif args.command == "key":
         asyncio.run(create_key(args.slug, Role(args.role), args.name))
+    elif args.command == "budget":
+        asyncio.run(set_budget(args.slug, args.tokens))
     else:
         asyncio.run(reindex(args.tenant))
 

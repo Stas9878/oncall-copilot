@@ -4,11 +4,14 @@ version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.20.0",
+    "arize-phoenix-otel>=0.17.2",
     "asyncpg>=0.32.0",
     "fastapi>=0.143.0",
     "natasha>=1.6.0",
     "openai>=3.29.0",
+    "openinference-instrumentation-openai>=0.1.65",
     "pillow>=12.3.0",
+    "prometheus-client>=0.26.0",
     "pydantic-settings>=2.15.0",
     "pymupdf>=1.28.2",
     "python-multipart>=0.0.32",
