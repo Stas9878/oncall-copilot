@@ -10,8 +10,8 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from src.worker import broker
 from src.core.config import get_settings
 from src.core.runtime import open_resources
-from src.api.routes import documents, health
 from src.core.logs import configure_logging, log
+from src.api.routes import ask, documents, health
 from src.search.index import collection_name, ensure_collection
 
 
@@ -58,4 +58,5 @@ def create_app() -> FastAPI:
     app.middleware("http")(request_context)
     app.include_router(health.router)
     app.include_router(documents.router)
+    app.include_router(ask.router)
     return app

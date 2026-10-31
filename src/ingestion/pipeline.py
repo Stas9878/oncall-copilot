@@ -7,6 +7,7 @@ from qdrant_client import models as qm
 from src.core.logs import log
 from src.core.runtime import Resources
 from src.core.storage import FileStorage
+from src.generation.cache import bump_kb_version
 from src.ingestion.captions import describe_image, image_mime
 from src.db.models import Document, DocumentKind, DocumentStatus, Section
 from src.search.index import collection_name, delete_document, ensure_collection, point_id
@@ -133,4 +134,6 @@ async def _write(resources: Resources, document: Document, parsed: ParsedDocumen
         stored.status = DocumentStatus.READY
         stored.error = None
         stored.index_version = version
+    # База знаний команды изменилась: ответы в кэше, собранные без этого документа, устарели.
+    await bump_kb_version(resources.redis, document.tenant_id)
     log.info("ingest_done", document_id=str(document.id), sections=len(sections), chunks=len(ids))

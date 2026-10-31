@@ -22,7 +22,7 @@ async def startup(state: TaskiqState) -> None:
     configure_logging(json=settings.environment != "local")
     state.stack = AsyncExitStack()
     state.resources = await state.stack.enter_async_context(open_resources(settings))
-    await state.resources.models.warmup()
+    await state.resources.models.warmup(reranker=False)
 
 
 @broker.on_event(TaskiqEvents.WORKER_SHUTDOWN)

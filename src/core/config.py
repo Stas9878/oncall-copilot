@@ -32,13 +32,29 @@ class LLMSettings(_Group, env_prefix="LLM_"):
     cloud_api_key: SecretStr = SecretStr("ollama")
     cloud_model: str = "gpt-oss:120b-cloud"
     vision_model: str = "gemma4:31b-cloud"
+    # gpt-oss рассуждает перед ответом. low сокращает рассуждение и расход квоты.
+    reasoning_effort: str = "low"
+    # Окно контекста локальной модели, как в --max-model-len у vLLM.
+    # Резервный промпт собирается под него: меньше источников и короче ответ.
+    local_context_tokens: int = 2048
     timeout_seconds: float = 60.0
 
 
 class ModelSettings(_Group, env_prefix="MODELS_"):
-    """Локальная модель эмбеддингов, работает на CPU."""
+    """Локальные модели для эмбеддингов и реранкинга, работают на CPU."""
 
     text_embedder: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    reranker: str = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
+
+
+class RetrievalSettings(_Group, env_prefix="RETRIEVAL_"):
+    top_sections: int = 4
+    # Порог оценки кросс-энкодера. Подобран на eval/cases.json: разделы с ответом
+    # проходят его, у вопросов без ответа в базе ни один фрагмент не проходит.
+    # Оценка поиска в CI проверяет оба условия при каждом изменении.
+    min_score: float = -2.5
+    # Сколько токенов источников помещается в промпт.
+    context_tokens: int = 2500
 
 
 class StorageSettings(_Group, env_prefix="STORAGE_"):
@@ -54,6 +70,7 @@ class Settings(_Group):
     qdrant: QdrantSettings = Field(default_factory=QdrantSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
     models: ModelSettings = Field(default_factory=ModelSettings)
+    retrieval: RetrievalSettings = Field(default_factory=RetrievalSettings)
     storage: StorageSettings = Field(default_factory=StorageSettings)
 
 

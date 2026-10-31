@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Response, UploadFile, status
 
 from src.core.storage import FileStorage
 from src.worker import ingest_document_task
+from src.generation.cache import bump_kb_version
 from src.security.uploads import detect_kind, read_limited
 from src.search.index import collection_name, delete_document
 from src.db.models import Document, DocumentKind, DocumentStatus
@@ -92,4 +93,5 @@ async def delete(document_id: uuid.UUID, principal: EditorDep, session: SessionD
     )
     await session.delete(document)
     await session.commit()
+    await bump_kb_version(resources.redis, principal.tenant_id)
     await FileStorage(resources.settings.storage).delete(principal.tenant_id, document.sha256, document.kind)
